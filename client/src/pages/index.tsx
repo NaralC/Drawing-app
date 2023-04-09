@@ -61,6 +61,9 @@ export default function Home() {
       socket.on(ACTIONS.UPDATE_CANVAS_STATE, ({ canvasState }) => {
         const context = canvasHoverRef.current?.getContext("2d");
 
+        console.log('new state!', canvasState)
+
+        // This doesn't really work 👇
         const img = createElement("img", {
           src: canvasState,
           onLoad: () => {
