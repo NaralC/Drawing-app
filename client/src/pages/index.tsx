@@ -4,6 +4,9 @@ import Image from "next/image";
 import { Inter } from "next/font/google";
 import { useMouse, useMove, useEyeDropper } from "@mantine/hooks";
 import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
+
+const socket = io("http://localhost:3001/");
 
 const inter = Inter({ subsets: ["latin"] });
 const COOR_RATIO = 1.2435723951285520974289580514208;
@@ -12,30 +15,38 @@ const LINE_WIDTH = 5;
 
 export default function Home() {
   const [curCoordinates, setCurCoordinates] = useState({ x: 0, y: 0 });
-  const [prevCoordinates, setPrevCoordinates] = useState<typeof curCoordinates | null>(null);
   const { ref: canvasHoverRef, x, y } = useMouse();
   const { ref: canvasClickRef, active: mouseIsDown } = useMove(({ x, y }) => {
-    setCurCoordinates({ x: (x * 1000) / COOR_RATIO, y: (y * 1000) / COOR_RATIO });
+    setCurCoordinates({
+      x: (x * 1000) / COOR_RATIO,
+      y: (y * 1000) / COOR_RATIO,
+    });
   });
 
-  const drawLine = (prevCoor: Coordinates) => {
-    const canvasContext = canvasHoverRef.current?.getContext("2d");
+  const drawLine = ({ context, curCoor }: Draw) => {
+    let startPoint = curCoor;
+    context.beginPath();
+    context.lineWidth = LINE_WIDTH;
+    context.strokeStyle = LINE_COLOR;
+    context.moveTo(startPoint.x, startPoint.y);
+    context.lineTo(x, y);
+    context.stroke();
 
-    let startPoint = prevCoor ?? { x, y };
-    canvasContext.beginPath();
-    canvasContext.lineWidth = LINE_WIDTH;
-    canvasContext.strokeStyle = LINE_COLOR;
-    canvasContext.moveTo(startPoint.x, startPoint.y);
-    canvasContext.lineTo(x, y);
-    canvasContext.stroke();
-
-    canvasContext.fillStyle = LINE_COLOR;
-    canvasContext.beginPath();
-    canvasContext.arc(startPoint.x, startPoint.y, 2, 0, 2 * Math.PI);
-    canvasContext.fill();
-
-    setPrevCoordinates(curCoordinates)
+    context.fillStyle = LINE_COLOR;
+    context.beginPath();
+    context.arc(startPoint.x, startPoint.y, 2, 0, 2 * Math.PI);
+    context.fill();
   };
+
+  useEffect(() => {
+    socket.on("draw-line", ({ color, curCoor }) => {
+      drawLine({ context: canvasHoverRef.current?.getContext("2d"), curCoor });
+    });
+
+    return () => {
+      socket.off("draw-line");
+    };
+  }, []);
 
   return (
     <>
@@ -43,7 +54,15 @@ export default function Home() {
         <div ref={canvasClickRef}>
           <canvas
             onMouseDown={() => {
-              drawLine({ x: curCoordinates.x, y: curCoordinates.y });
+              drawLine({
+                context: canvasHoverRef.current?.getContext("2d"),
+                curCoor: curCoordinates,
+              });
+
+              socket.emit("draw-line", {
+                color: LINE_COLOR,
+                curCoor: curCoordinates,
+              });
             }}
             ref={canvasHoverRef}
             width={800}
