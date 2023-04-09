@@ -46,7 +46,14 @@ export default function Home() {
     return () => {
       socket.off("draw-line");
     };
-  }, []);
+  });
+
+  useEffect(() => {
+    socket.emit("draw-line", {
+      color: LINE_COLOR,
+      curCoor: curCoordinates,
+    });
+  }, [canvasClickRef, curCoordinates])
 
   return (
     <>
@@ -56,11 +63,6 @@ export default function Home() {
             onMouseDown={() => {
               drawLine({
                 context: canvasHoverRef.current?.getContext("2d"),
-                curCoor: curCoordinates,
-              });
-
-              socket.emit("draw-line", {
-                color: LINE_COLOR,
                 curCoor: curCoordinates,
               });
             }}
