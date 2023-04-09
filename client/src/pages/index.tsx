@@ -3,8 +3,9 @@
 import Image from "next/image";
 import { Inter } from "next/font/google";
 import { useMouse, useMove, useEyeDropper } from "@mantine/hooks";
-import { useEffect, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import ACTIONS from "@/lib/actions";
 
 const socket = io("http://localhost:3001/");
 
@@ -38,22 +39,51 @@ export default function Home() {
     context.fill();
   };
 
+  const effectRan = useRef(false);
   useEffect(() => {
-    socket.on("draw-line", ({ color, curCoor }) => {
-      drawLine({ context: canvasHoverRef.current?.getContext("2d"), curCoor });
-    });
+    if (effectRan.current === true) {
+      socket.emit(ACTIONS.NEW_CLIENT);
 
+      socket.on(ACTIONS.DRAW_LINE, ({ curCoor }) => {
+        drawLine({
+          context: canvasHoverRef.current?.getContext("2d"),
+          curCoor,
+        });
+      });
+
+      socket.on(ACTIONS.GET_CANVAS_STATE, () => {
+        socket.emit(
+          ACTIONS.UPDATE_CANVAS_STATE,
+          canvasHoverRef.current?.toDataURL()
+        );
+      });
+
+      socket.on(ACTIONS.UPDATE_CANVAS_STATE, ({ canvasState }) => {
+        const context = canvasHoverRef.current?.getContext("2d");
+
+        const img = createElement("img", {
+          src: canvasState,
+          onLoad: () => {
+            context?.drawImage(img, 0, 0);
+          }
+       }, null);
+      });
+    }
     return () => {
-      socket.off("draw-line");
+      socket.off(ACTIONS.DRAW_LINE);
+      socket.off(ACTIONS.NEW_CLIENT);
+      socket.off(ACTIONS.GET_CANVAS_STATE);
+      socket.off(ACTIONS.UPDATE_CANVAS_STATE);
+      effectRan.current = true;
     };
   });
 
   useEffect(() => {
-    socket.emit("draw-line", {
+    socket.emit(ACTIONS.DRAW_LINE, {
       color: LINE_COLOR,
       curCoor: curCoordinates,
     });
-  }, [canvasClickRef, curCoordinates])
+  }, [canvasClickRef, curCoordinates]);
 
   return (
     <>
